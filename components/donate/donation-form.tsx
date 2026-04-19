@@ -1,8 +1,8 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useDonationVoiceContext } from "@/components/voice/donation-voice-context";
 import { categoryOptions, conditionOptions } from "@/lib/constants";
 import { ClothingBulkRange, DonationInput, DonorInput, DonorProfile } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -41,11 +41,6 @@ const initialItemState = {
   imageDataUrl: ""
 };
 
-const VoiceGuidedDonationPanel = dynamic(
-  () => import("@/components/voice/voice-guided-donation-panel").then((module) => module.VoiceGuidedDonationPanel),
-  { ssr: false, loading: () => null }
-);
-
 export function DonationForm({
   donor,
   startAnonymous = false
@@ -54,6 +49,7 @@ export function DonationForm({
   startAnonymous?: boolean;
 }) {
   const router = useRouter();
+  const { setDonationVoiceActions, setDonationVoiceState } = useDonationVoiceContext();
   const [step, setStep] = useState<DonateStep>(donor ? "item" : "donor");
   const [form, setForm] = useState<FormState>({
     donor: donor
@@ -478,14 +474,24 @@ export function DonationForm({
     submitDonation
   } satisfies Record<string, (...args: never[]) => unknown>;
 
+  useEffect(() => {
+    setDonationVoiceState(voiceState);
+  }, [setDonationVoiceState, voiceState]);
+
+  useEffect(() => {
+    setDonationVoiceActions(voiceActions);
+    return () => {
+      setDonationVoiceActions(null);
+      setDonationVoiceState(null);
+    };
+  }, [setDonationVoiceActions, setDonationVoiceState, voiceActions]);
+
   return (
-    <div className="space-y-8">
-      <VoiceGuidedDonationPanel state={voiceState} actions={voiceActions} />
-      <form
-        onSubmit={handleSubmit}
-        className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr]"
-        aria-describedby={submitError ? "form-error" : undefined}
-      >
+    <form
+      onSubmit={handleSubmit}
+      className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr]"
+      aria-describedby={submitError ? "form-error" : undefined}
+    >
         <div className="space-y-6 rounded-[2rem] border border-white/80 bg-white/85 p-6 shadow-card backdrop-blur sm:p-8">
         <div className="flex items-center gap-3">
           <StepBadge active={step === "donor"} number="1" label="Donor details" />
@@ -884,8 +890,7 @@ export function DonationForm({
           </ul>
         </div>
       </aside>
-      </form>
-    </div>
+    </form>
   );
 }
 

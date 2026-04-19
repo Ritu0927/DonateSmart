@@ -1,8 +1,15 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { ConversationProvider, useConversation, useConversationStatus } from "@elevenlabs/react";
-import { cn } from "@/lib/utils";
+import {
+  ConversationProvider,
+  useConversation,
+  useConversationClientTool,
+  useConversationStatus
+} from "@elevenlabs/react";
+import { useDonationVoiceContext } from "@/components/voice/donation-voice-context";
+import { cn, toTitleCase } from "@/lib/utils";
 
 export function ElevenLabsAssistantRuntime({
   isOpen,
@@ -23,6 +30,8 @@ export function ElevenLabsAssistantRuntime({
 }
 
 function AssistantPanel({ isOpen, onToggle }: { isOpen: boolean; onToggle: () => void }) {
+  const pathname = usePathname();
+  const { state, actions } = useDonationVoiceContext();
   const [isMuted, setIsMuted] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
   const [localError, setLocalError] = useState("");
@@ -30,6 +39,9 @@ function AssistantPanel({ isOpen, onToggle }: { isOpen: boolean; onToggle: () =>
   const conversation = useConversation({
     micMuted: isMuted
   });
+  const onDonatePage = pathname === "/donate" && state && actions;
+
+  useDonationTools(state, actions);
 
   async function handleStart() {
     setIsBusy(true);
@@ -97,7 +109,9 @@ function AssistantPanel({ isOpen, onToggle }: { isOpen: boolean; onToggle: () =>
             <p className="mt-3 text-sm leading-6 text-slate-500">
               {localError ||
                 message ||
-                "Use voice to ask about donation categories, bulk clothing submissions, QR codes, approvals, or inventory steps."}
+                (onDonatePage
+                  ? "You can now use this assistant to fill the donation form by voice, guide the donor to the image step, and submit once the image is added."
+                  : "Use voice to ask about donation categories, bulk clothing submissions, QR codes, approvals, or inventory steps.")}
             </p>
           </div>
 
@@ -133,9 +147,19 @@ function AssistantPanel({ isOpen, onToggle }: { isOpen: boolean; onToggle: () =>
             </p>
           </div>
 
+          {onDonatePage ? (
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <Snapshot label="Donor mode" value={state.isAnonymous ? "Anonymous" : "Named donor"} />
+              <Snapshot label="Item photo" value={state.hasImage ? "Image added" : "Waiting for image"} />
+              <Snapshot label="Category" value={state.category ? toTitleCase(state.category) : "Not selected"} />
+              <Snapshot label="Condition" value={state.condition ? toTitleCase(state.condition) : "Not selected"} />
+            </div>
+          ) : null}
+
           <p className="mt-4 text-xs leading-5 text-slate-400">
-            Your browser will ask for microphone access before the conversation starts. This app now uses a server-side
-            ElevenLabs signed URL for the connection.
+            {onDonatePage
+              ? "On the donate page, this assistant can control the same form fields. The donor still uses the page buttons for image upload or camera capture."
+              : "Your browser will ask for microphone access before the conversation starts. This app now uses a server-side ElevenLabs signed URL for the connection."}
           </p>
         </div>
       ) : null}
@@ -148,4 +172,96 @@ function toStatusLabel(status: ReturnType<typeof useConversationStatus>["status"
   if (status === "connecting") return "Connecting";
   if (status === "error") return "Error";
   return "Disconnected";
+}
+
+function useDonationTools(
+  state: ReturnType<typeof useDonationVoiceContext>["state"],
+  actions: ReturnType<typeof useDonationVoiceContext>["actions"]
+) {
+  useConversationClientTool("get_donation_state", () =>
+    state
+      ? JSON.stringify({
+          step: state.step,
+          isAnonymous: state.isAnonymous,
+          donorName: state.donorName,
+          donorEmail: state.donorEmail,
+          donorPhone: state.donorPhone,
+          itemName: state.itemName,
+          category: state.category,
+          isBulkClothing: state.isBulkClothing,
+          bulkClothingRange: state.bulkClothingRange,
+          condition: state.condition,
+          brand: state.brand,
+          size: state.size,
+          description: state.description,
+          hasImage: state.hasImage
+        })
+      : JSON.stringify({ available: false, message: "Donation form is not active on this page." })
+  );
+
+  useConversationClientTool("set_anonymous", (params) =>
+    actions ? actions.setAnonymous(Boolean(params.anonymous)) : "Donation form is not active on this page."
+  );
+  useConversationClientTool("set_donor_name", (params) =>
+    actions ? actions.setDonorName(asString(params.name)) : "Donation form is not active on this page."
+  );
+  useConversationClientTool("set_donor_email", (params) =>
+    actions ? actions.setDonorEmail(asString(params.email)) : "Donation form is not active on this page."
+  );
+  useConversationClientTool("set_donor_phone", (params) =>
+    actions ? actions.setDonorPhone(asString(params.phone)) : "Donation form is not active on this page."
+  );
+  useConversationClientTool("continue_to_item_step", () =>
+    actions ? actions.continueToItemStep() : "Donation form is not active on this page."
+  );
+  useConversationClientTool("go_to_donor_step", () =>
+    actions ? actions.goToDonorStep() : "Donation form is not active on this page."
+  );
+  useConversationClientTool("set_item_name", (params) =>
+    actions ? actions.setItemName(asString(params.itemName)) : "Donation form is not active on this page."
+  );
+  useConversationClientTool("set_category", (params) =>
+    actions ? actions.setCategory(asString(params.category)) : "Donation form is not active on this page."
+  );
+  useConversationClientTool("set_bulk_clothing", (params) =>
+    actions ? actions.setBulkClothing(Boolean(params.isBulk)) : "Donation form is not active on this page."
+  );
+  useConversationClientTool("set_bulk_clothing_range", (params) =>
+    actions ? actions.setBulkClothingRange(asString(params.range)) : "Donation form is not active on this page."
+  );
+  useConversationClientTool("set_condition", (params) =>
+    actions ? actions.setCondition(asString(params.condition)) : "Donation form is not active on this page."
+  );
+  useConversationClientTool("set_brand", (params) =>
+    actions ? actions.setBrand(asString(params.brand)) : "Donation form is not active on this page."
+  );
+  useConversationClientTool("set_size", (params) =>
+    actions ? actions.setSize(asString(params.size)) : "Donation form is not active on this page."
+  );
+  useConversationClientTool("set_description", (params) =>
+    actions ? actions.setDescription(asString(params.description)) : "Donation form is not active on this page."
+  );
+  useConversationClientTool("prompt_image_upload", (params) =>
+    actions ? actions.promptImageUpload(asUploadMode(params.mode)) : Promise.resolve("Donation form is not active on this page.")
+  );
+  useConversationClientTool("submit_donation", () =>
+    actions ? actions.submitDonation() : Promise.resolve("Donation form is not active on this page.")
+  );
+}
+
+function Snapshot({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl bg-slate-50 p-4">
+      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{label}</p>
+      <p className="mt-2 text-sm font-semibold text-slate-800">{value}</p>
+    </div>
+  );
+}
+
+function asString(value: unknown) {
+  return typeof value === "string" ? value : "";
+}
+
+function asUploadMode(value: unknown): "camera" | "files" | undefined {
+  return value === "camera" || value === "files" ? value : undefined;
 }

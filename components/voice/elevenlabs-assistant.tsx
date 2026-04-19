@@ -1,7 +1,6 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { usePathname } from "next/navigation";
 import { useMemo, useState } from "react";
 
 const ElevenLabsAssistantRuntime = dynamic(
@@ -10,13 +9,8 @@ const ElevenLabsAssistantRuntime = dynamic(
 );
 
 export function ElevenLabsAssistant() {
-  const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const shouldLoadRuntime = useMemo(() => isOpen, [isOpen]);
-
-  if (pathname === "/donate") {
-    return null;
-  }
 
   return (
     <>
