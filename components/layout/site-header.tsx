@@ -3,8 +3,7 @@ import Link from "next/link";
 const navItems = [
   { href: "/", label: "Home" },
   { href: "/donate", label: "Donate" },
-  { href: "/staff-login", label: "Dashboard" },
-  { href: "/inventory", label: "Inventory" }
+  { href: "/staff-login", label: "Dashboard" }
 ];
 
 export function SiteHeader() {

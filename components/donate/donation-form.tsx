@@ -1,10 +1,12 @@
 "use client";
 
 import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useDonationVoiceContext } from "@/components/voice/donation-voice-context";
+import { DownloadQrButton } from "@/components/qr/download-qr-button";
 import { categoryOptions, conditionOptions } from "@/lib/constants";
-import { ClothingBulkRange, DonationInput, DonorInput, DonorProfile } from "@/lib/types";
+import { ClothingBulkRange, DonationInput, DonationItem, DonorInput, DonorProfile } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type DonateStep = "donor" | "item";
@@ -65,6 +67,8 @@ export function DonationForm({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [submittedItem, setSubmittedItem] = useState<DonationItem | null>(null);
+  const [submittedDonorId, setSubmittedDonorId] = useState<string | null>(null);
   const [cameraError, setCameraError] = useState("");
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [isStartingCamera, setIsStartingCamera] = useState(false);
@@ -313,6 +317,7 @@ export function DonationForm({
 
       const payload = (await response.json()) as {
         id?: string;
+        item?: DonationItem;
         donorId?: string | null;
         errors?: Record<string, string>;
         error?: string;
@@ -328,7 +333,16 @@ export function DonationForm({
       const successUrl = payload.donorId
         ? `/success/${payload.id}?donor=${payload.donorId}`
         : `/success/${payload.id}?anonymous=1`;
-      router.push(successUrl);
+
+      if (payload.item) {
+        setSubmittedItem(payload.item);
+        setSubmittedDonorId(payload.donorId ?? null);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+
+      // Keep the canonical success route available, but do not depend on it
+      // for showing the QR result after submission.
+      router.prefetch(successUrl);
       return "Donation submitted successfully. The QR code is now being shown on the success page.";
     } catch (error) {
       const message = error instanceof Error ? error.message : "Something went wrong.";
@@ -485,6 +499,88 @@ export function DonationForm({
       setDonationVoiceState(null);
     };
   }, [setDonationVoiceActions, setDonationVoiceState, voiceActions]);
+
+  if (submittedItem) {
+    const nextItemHref = submittedDonorId ? `/donate?donor=${submittedDonorId}` : submittedItem.isAnonymousDonation ? "/donate?anonymous=1" : "/donate";
+    const homeHref = submittedDonorId ? `/?donor=${submittedDonorId}&item=${submittedItem.id}` : "/";
+    const canonicalSuccessHref = submittedDonorId
+      ? `/success/${submittedItem.id}?donor=${submittedDonorId}`
+      : `/success/${submittedItem.id}?anonymous=1`;
+
+    return (
+      <div className="grid gap-8 lg:grid-cols-[1fr_340px] lg:items-start">
+        <section className="rounded-[2rem] border border-white/80 bg-white/85 p-8 shadow-card backdrop-blur">
+          <p className="text-sm font-semibold uppercase tracking-[0.24em] text-sage-700">Submission Complete</p>
+          <h1 className="mt-4 text-4xl font-semibold tracking-tight text-slate-900">
+            {submittedItem.itemName} is now in DonateSmart.
+          </h1>
+          <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">
+            The item record has been created, and the QR code is ready for staff when the donated item is delivered.
+          </p>
+
+          <div className="mt-8 grid gap-4 sm:grid-cols-2">
+            <div className="rounded-[1.5rem] bg-slate-50 p-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Your donation impact</p>
+              <p className="mt-3 text-lg font-semibold text-slate-900">{submittedItem.donorImpactMessage}</p>
+            </div>
+            <div className="rounded-[1.5rem] bg-slate-50 p-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
+                {submittedItem.isAnonymousDonation ? "Anonymous donation" : "Loyalty points incoming"}
+              </p>
+              <p className="mt-3 text-base font-semibold text-slate-900">
+                {submittedItem.isAnonymousDonation ? "No loyalty points for this donation" : `${submittedItem.loyaltyPointsAwarded} points`}
+              </p>
+              <p className="mt-2 text-sm text-slate-500">
+                {submittedItem.isAnonymousDonation
+                  ? "Because this item was donated anonymously, no donor profile or loyalty points were attached."
+                  : "These points will be added after staff approves the delivered item."}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+            <Link
+              href={nextItemHref}
+              className="rounded-full bg-sage-600 px-6 py-3 text-center text-sm font-semibold text-white transition hover:bg-sage-700"
+            >
+              Next item
+            </Link>
+            <Link
+              href={homeHref}
+              className="rounded-full border border-slate-200 bg-white px-6 py-3 text-center text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              Exit to home
+            </Link>
+            <Link
+              href={canonicalSuccessHref}
+              className="rounded-full border border-slate-200 bg-white px-6 py-3 text-center text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              Open full success page
+            </Link>
+          </div>
+        </section>
+
+        <aside className="rounded-[2rem] border border-white/80 bg-white/85 p-6 shadow-card backdrop-blur">
+          <p className="text-sm font-semibold text-slate-900">QR code for staff</p>
+          <p className="mt-2 text-sm text-slate-500">Attach or print this code so it can be scanned later.</p>
+          <div className="mt-5 rounded-[1.5rem] bg-slate-50 p-4">
+            <img
+              src={submittedItem.qrCodeDataUrl}
+              alt={`QR code for ${submittedItem.itemName}`}
+              className="mx-auto h-64 w-64"
+            />
+          </div>
+          <div className="mt-4">
+            <DownloadQrButton qrCodeDataUrl={submittedItem.qrCodeDataUrl} itemId={submittedItem.id} />
+          </div>
+          <div className="mt-4 rounded-[1.25rem] bg-slate-50 px-4 py-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">QR code ID</p>
+            <p className="mt-2 text-sm font-semibold text-slate-900">{submittedItem.qrCodeId}</p>
+          </div>
+        </aside>
+      </div>
+    );
+  }
 
   return (
     <form

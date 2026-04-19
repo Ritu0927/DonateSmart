@@ -35,24 +35,6 @@ export function ItemDetailCard({ item, canApprove = false }: { item: DonationIte
           <InfoTile label="Submitted" value={formatDate(item.createdAt)} />
         </div>
 
-        <div className="rounded-[1.5rem] border border-peach-100 bg-peach-50 p-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-peach-500">Donor Impact</p>
-          <p className="mt-3 text-base font-semibold text-slate-900">{item.donorImpactMessage}</p>
-          <p className="mt-2 text-sm text-slate-600">
-            {item.isAnonymousDonation ? (
-              <>Anonymous donation. No loyalty points are attached to this item.</>
-            ) : item.status === "waiting-approval" ? (
-              <>
-                Loyalty points incoming: <span className="font-semibold">{item.loyaltyPointsAwarded}</span>
-              </>
-            ) : (
-              <>
-                Loyalty points awarded: <span className="font-semibold">{item.loyaltyPointsAwarded}</span>
-              </>
-            )}
-          </p>
-        </div>
-
         <div className="rounded-[1.5rem] bg-sage-900 p-5 text-white">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sage-100">
             Suggested resale range

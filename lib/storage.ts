@@ -73,6 +73,11 @@ export async function getItemById(id: string) {
   return store.items.find((item) => item.id === id) ?? null;
 }
 
+export async function getItemByQrCodeId(qrCodeId: string) {
+  const store = await readStore();
+  return store.items.find((item) => item.qrCodeId === qrCodeId) ?? null;
+}
+
 export async function getDonorById(id: string) {
   const store = await readStore();
   return store.donors.find((donor) => donor.id === id) ?? null;
@@ -121,7 +126,25 @@ export async function createDonationItem(
   options?: { isAnonymousDonation?: boolean }
 ) {
   const store = await readStore();
-  const pricing = await appraiseDonationItem(input);
+  const existingAppraisalMatch = store.items.find(
+    (item) =>
+      item.itemName.trim().toLowerCase() === input.itemName.trim().toLowerCase() &&
+      item.category === input.category &&
+      Boolean(item.isBulkClothing) === Boolean(input.isBulkClothing) &&
+      (item.bulkClothingRange || "") === (input.bulkClothingRange || "") &&
+      item.condition === input.condition &&
+      (item.brand || "").trim().toLowerCase() === (input.brand || "").trim().toLowerCase() &&
+      (item.size || "").trim().toLowerCase() === (input.size || "").trim().toLowerCase() &&
+      (item.description || "").trim() === (input.description || "").trim() &&
+      item.imageDataUrl === input.imageDataUrl
+  );
+
+  const pricing = existingAppraisalMatch
+    ? {
+        suggestedResaleRange: existingAppraisalMatch.suggestedResaleRange,
+        appraisal: existingAppraisalMatch.appraisal
+      }
+    : await appraiseDonationItem(input);
   const id = createItemId();
   const qrCodeId = createQrCodeId(store.items);
   const itemUrl = `${resolveBaseUrl()}/items/${id}`;
